@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Somu · Live Projects</title>
+<meta name="description" content="Live demos: TradeOps options analytics and Job Search Copilot.">
+<style>
+:root{--bg:#f7f7f5;--card:#fff;--ink:#1d1d1f;--mute:#6e6e73;--line:#e5e5e7;--acc:#0a66c2;--ok:#1a7f37}
+@media (prefers-color-scheme:dark){:root{--bg:#111214;--card:#1b1c1f;--ink:#f2f2f2;--mute:#a1a1a6;--line:#2c2d31;--acc:#4ea1ff;--ok:#3fb950}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif}
+main{max-width:920px;margin:0 auto;padding:48px 16px 64px}
+h1{font-size:30px;margin:0 0 6px}
+.sub{color:var(--mute);margin:0 0 32px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+.card h2{font-size:20px;margin:0 0 6px}
+.card p{color:var(--mute);margin:0 0 14px;font-size:15px}
+.card ul{margin:0 0 18px;padding-left:18px;font-size:14px}
+.btn{display:inline-block;background:var(--acc);color:#fff;border:0;border-radius:9px;padding:10px 16px;font:600 15px inherit;cursor:pointer;text-decoration:none}
+.btn[disabled]{opacity:.6;cursor:wait}
+.status{margin-top:12px;font-size:14px;color:var(--mute);min-height:20px}
+.bar{height:6px;background:var(--line);border-radius:4px;overflow:hidden;margin-top:8px;display:none}
+.bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .9s linear}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--mute);margin-right:6px}
+.dot.up{background:var(--ok)}
+footer{margin-top:40px;color:var(--mute);font-size:13px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Somu — Live Projects</h1>
+  <p class="sub">Two working applications, running live. Click a demo to open it. Data is a public sample; no real accounts.</p>
+  <div class="grid">
+    <section class="card" data-url="https://tradeops-nextgen.onrender.com" data-probe="/health">
+      <h2>TradeOps NextGen</h2>
+      <p>Options analytics terminal: market heatmap, money-flow rotation, dealer gamma, exit planner.</p>
+      <ul><li>Python · FastAPI · SQLite · Plotly</li><li>Options data captured end-of-day</li></ul>
+      <button class="btn" type="button">Open live demo</button>
+      <div class="bar"><i></i></div>
+      <div class="status"><span class="dot"></span><span class="st">Checking…</span></div>
+    </section>
+    <section class="card" data-url="https://job-search-copilot-demo.onrender.com" data-probe="/">
+      <h2>Job Search Copilot</h2>
+      <p>Resume parsing, job matching and scoring, cover letters and interview prep.</p>
+      <ul><li>Python · FastAPI · LLM pipeline</li><li>Fictional sample candidates</li></ul>
+      <button class="btn" type="button">Open live demo</button>
+      <div class="bar"><i></i></div>
+      <div class="status"><span class="dot"></span><span class="st">Checking…</span></div>
+    </section>
+  </div>
+  <footer>Demos run on a free host that sleeps when idle; the first open can take up to a minute while it starts.</footer>
+</main>
+<script>
+// Wake-up flow: a sleeping free host answers slowly. We ping (no-cors: we only need "it answered")
+// and show progress, then open the demo once it responds, so a visitor never sees a blank page.
+async function probe(base, path, ms) {
+  const c = new AbortController(); const t = setTimeout(() => c.abort(), ms);
+  try { await fetch(base + path + "?t=" + Date.now(), {mode: "no-cors", cache: "no-store", signal: c.signal}); return true; }
+  catch (e) { return false; } finally { clearTimeout(t); }
+}
+document.querySelectorAll(".card").forEach(card => {
+  const url = card.dataset.url, path = card.dataset.probe;
+  const btn = card.querySelector(".btn"), st = card.querySelector(".st"), dot = card.querySelector(".dot");
+  const bar = card.querySelector(".bar"), fill = bar.querySelector("i");
+  const t0 = performance.now();
+  probe(url, path, 4000).then(up => {      // quick check: awake already?
+    card.dataset.up = up ? "1" : "";
+    dot.classList.toggle("up", up);
+    st.textContent = up ? "Online, opens instantly" : "Sleeping, starts in ~30-60 s when opened";
+  });
+  btn.addEventListener("click", async () => {
+    if (card.dataset.up) { location.href = url; return; }
+    btn.disabled = true; bar.style.display = "block";
+    const start = performance.now();
+    const tick = setInterval(() => {
+      const s = (performance.now() - start) / 1000;
+      fill.style.width = Math.min(95, s / 60 * 100) + "%";
+      st.textContent = `Starting the live demo… ${Math.round(s)} s (free host waking up)`;
+    }, 500);
+    while (performance.now() - start < 120000) {   // keep trying for ~2 min
+      const t1 = performance.now();
+      if (await probe(url, path, 10000)) {
+        clearInterval(tick); fill.style.width = "100%"; st.textContent = "Ready, opening…";
+        location.href = url; return;
+      }
+      // a fast failure (connection refused) must not burn the retries: wait out the rest of 5 s
+      const left = 5000 - (performance.now() - t1);
+      if (left > 0) await new Promise(r => setTimeout(r, left));
+    }
+    clearInterval(tick); btn.disabled = false;
+    st.innerHTML = `Still starting. <a href="${url}">Open it directly</a> and give it a few more seconds.`;
+  });
+});
+</script>
+</body>
+</html>
